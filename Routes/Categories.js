@@ -129,4 +129,36 @@ try {
   res.status(500).json({ error: 'Internal Server Error' });
 }
 })
+
+
+
+router.get('/feedbacks/:email', async (req, res) => {
+  const { email } = req.params;
+  console.log('Email:', email);
+
+  try {
+    // Assuming you're fetching `response` from a database
+    const response = await categories.find(); // Replace with actual query
+    console.log('Fetched response:', response);
+
+    // Filter the tasks for the given email
+    const filteredTasks = response.flatMap(element => 
+      element.tasks.filter(task => task.seeker === email)
+    );
+    const feedbacks = filteredTasks.map(task => ({
+      title: task.title,
+      feedback: task.feedback,
+    }));
+    console.log('Filtered tasks:', filteredTasks);
+
+    // Send filtered tasks as the response
+    res.json(feedbacks);
+  } catch (error) {
+    console.error('Error fetching tasks:', error.message);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
 module.exports = router;
+    
