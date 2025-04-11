@@ -17,45 +17,46 @@ router.get('/', async (req, res) => {
 
 router.post('/task', async (req, res) => {
   try {
-    const { category,seeker, task } = req.body;
-    const response = await categories.findOne( { category: category });
-       
+    const { category, seeker, task } = req.body;
+
     console.log(task);
-    if(task.type === "problem")  {
-    response.tasks.push({
-          seeker: seeker,
-            title: task.title,
-            description: task.description,
-            // url: task.url,
-            type: task.type,
-        })
-      }
-      if(task.type === "idea")  {
-        response.tasks.push({
-          seeker: seeker,
-            title: task.title,
-            description: task.description,
-            url: task.url,
-            type: task.type,
-        })
-      }
-      if(task.type === "survey")  {
-        response.tasks.push({
-          seeker: seeker,
-            title: task.title,
-            description: task.description,
-            url: task.url,
-            type: task.type,
-        })
-      } 
-      response.save();
-    res.json("submmitted");
-  }catch (error) {
-    console.error('Error creating category:', error.message);
-    res.status  
-    (500).json({ error: 'Internal Server Error' });
+
+    let response = await categories.findOne({ category });
+
+    // ✅ If category doesn't exist, create it
+    if (!response) {
+      response = new categories({
+        category,
+        participants: [],
+        tasks: [],
+      });
+    }
+
+    // ✅ Prepare task object
+    const newTask = {
+      seeker,
+      title: task.title,
+      description: task.description,
+      type: task.type,
+    };
+
+    // Only add URL if task type is 'idea' or 'survey'
+    if (task.type === "idea" || task.type === "survey") {
+      newTask.url = task.url;
+    }
+
+    // ✅ Push task
+    response.tasks.push(newTask);
+
+    // ✅ Save updated/new category document
+    await response.save();
+
+    res.json("submitted");
+  } catch (error) {
+    console.error('Error creating/updating category:', error.message);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
-})   
+});
 
 router.get('/provider/:email', async (req, res) => {
   const { email } = req.params;
