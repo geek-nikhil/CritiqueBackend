@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const categories = require('../Models/Categories');
 const  User = require('../Models/User');
+const { generateSummary } = require('../summary/summarygenerate');
 
 router.get('/', async (req, res) => {
   try {
@@ -109,26 +110,56 @@ router.get('/provider/:email', async (req, res) => {
 
 
 router.post('/task/feedback', async (req, res) => {
-const { category, title, feedback, email } = req.body;
-console.log(category + "||  " +  title + "||  " + feedback + "||  " + email);
-try {
-  const response = await categories.findOne( { category: category });
-  const task = response.tasks.find(task => task.title === title);
-  if (!task) {
-    return res.status(404).json({ error: 'Task not found' });
+  const { category, title, feedback, email } = req.body;
+
+  console.log(`${category} || ${title} || ${feedback} || ${email}`);
+
+  try {
+    const response = await categories.findOne({ category });
+
+    const task = response.tasks.find(task => task.title === title);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Step 1: Add feedback first
+    task.feedback.push({
+      feedback,
+      participant: email,
+    });
+    task.reviewedParticipants.push(email);
+
+    // Step 2: If there's more than 1 feedback, generate summary
+    if (task.feedback.length > 1) {
+      const reviews = task.feedback.map(fb => fb.feedback);
+
+      const summaryPayload = {
+        id: task._id.toString(),
+        title: task.title,
+        description: task.description,
+        reviews,
+      };
+
+      try {
+        const summary = await generateSummary(summaryPayload);
+
+        // Step 3: Add summary to the task
+        task.summary = summary;
+        console.log('Summary generated and added to task.');
+      } catch (summaryErr) {
+        console.error("Error generating summary:", summaryErr.message);
+        // Don't block the response on summary failure
+      }
+    }
+
+    // Step 4: Save the changes to DB
+    await response.save();
+    res.json(response);
+  } catch (error) {
+    console.error('Error updating task with feedback:', error.message);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
-  task.feedback.push({
-    feedback: feedback,
-    participant: email,
-  })
-  task.reviewedParticipants.push(email);
-  await response.save();
-  res.json(response);
-} catch (error) {
-  console.error('Error creating category:', error.message);
-  res.status(500).json({ error: 'Internal Server Error' });
-}
-})
+});
 
 
 
