@@ -18,7 +18,7 @@ const generateSummary = async (data) => {
   if (!id || !title || !description || !reviews || !Array.isArray(reviews)) {
     throw new Error("Missing or invalid fields in input data.");
   }
-
+  console.log("Generating summary for:", id, title, description, reviews);
   const summary = await getFeedbackSummary({ id, title, description, reviews });
   return summary;
 };
