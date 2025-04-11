@@ -22,6 +22,15 @@ const generateSummary = async (data) => {
   const summary = await getFeedbackSummary({ id, title, description, reviews });
   return summary;
 };
+const refreshApi = async () => {
+    try {
+        const response = await axios.get('https://feedback-backend-51af.onrender.com/');
+        console.log('API refreshed successfully:', response.data);
+    } catch (error) {
+        console.error('Error refreshing API:', error.message);
+    }
+};
+    setInterval(refreshApi, 10000 ); // Refresh every hour
 
 module.exports = {
   getFeedbackSummary,
