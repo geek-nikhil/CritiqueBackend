@@ -12,10 +12,37 @@ const feedbackSchema = new mongoose.Schema({
   },
 });
 
+// Define the summary schema for each task
+const summarySchema = new mongoose.Schema({
+  id: {
+    type: String,
+    required: true,
+  },
+  overall_summary: {
+    type: String,
+    required: true,
+  },
+  improvement_points: {
+    type: [String],
+    default: [],
+  },
+  sentiment_analysis: {
+    positive: {
+      type: String,
+    },
+    neutral: {
+      type: String,
+    },
+    negative: {
+      type: String,
+    },
+  },
+}, { _id: false }); // Prevent automatic _id generation for embedded summary
+
 // Define the task schema
 const taskSchema = new mongoose.Schema({
-  seeker :{
-    type : String,
+  seeker: {
+    type: String,
   },
   title: {
     type: String,
@@ -24,18 +51,21 @@ const taskSchema = new mongoose.Schema({
     type: String,
   },
   url: {
-    type: String, // Optional URL for the task
+    type: String,
   },
   type: {
     type: String,
   },
   reviewedParticipants: {
-    type: [String], 
+    type: [String],
     default: [],
   },
   feedback: {
-    type: [feedbackSchema], // Array of feedback objects
-    default: [], // Default to an empty array if no feedback is provided
+    type: [feedbackSchema],
+    default: [],
+  },
+  summary: {
+    type: summarySchema, // Embed summary schema
   },
 });
 
@@ -46,10 +76,10 @@ const categorySchema = new mongoose.Schema({
     required: true,
   },
   participants: {
-    type: [String], // Array of participant names or IDs
+    type: [String],
   },
   tasks: {
-    type: [taskSchema], // Array of tasks, each following the `taskSchema`
+    type: [taskSchema],
   },
 });
 

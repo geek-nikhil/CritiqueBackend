@@ -3,6 +3,7 @@ const app = express();
 const db = require('./db');
 const port = 3000;
 const user = require('./Routes/user');
+const summary = require('./Routes/summarized');
 const cors = require('cors');
 const Categories = require('./Routes/Categories');
 app.use(cors());
@@ -13,6 +14,7 @@ app.get('/', (req, res) => {
 });
 app.use('/user', user);
 app.use('/categories' , Categories)
+app.use('/summary', summary);
 app.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}`);
 });
