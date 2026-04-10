@@ -4,6 +4,61 @@ const categories = require('../Models/Categories');
 const User = require('../Models/User');
 const { generateSummary } = require('../summary/summarygenerate');
 
+// GET health check endpoint
+router.get('/health', async (req, res) => {
+  console.log('[GET /health] - Health check endpoint hit');
+  console.log(`[GET /health] - Timestamp: ${new Date().toISOString()}`);
+  console.log(`[GET /health] - Request IP: ${req.ip}`);
+  console.log(`[GET /health] - User Agent: ${req.get('user-agent')}`);
+  
+  try {
+    // Optional: Check database connection
+    console.log('[GET /health] - Checking database connection...');
+    await categories.findOne().lean(); // Simple query to check DB
+    console.log('[GET /health] - Database connection: OK');
+    
+    const healthStatus = {
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memoryUsage: process.memoryUsage(),
+      database: 'connected',
+      environment: process.env.NODE_ENV || 'development',
+      version: '1.0.0'
+    };
+    
+    console.log('[GET /health] - Health check successful:', JSON.stringify(healthStatus, null, 2));
+    res.status(200).json(healthStatus);
+  } catch (error) {
+    console.error('[GET /health] - Health check failed:', error.message);
+    console.error('[GET /health] - Database connection error:', error.stack);
+    
+    const healthStatus = {
+      status: 'ERROR',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memoryUsage: process.memoryUsage(),
+      database: 'disconnected',
+      error: error.message,
+      environment: process.env.NODE_ENV || 'development',
+      version: '1.0.0'
+    };
+    
+    res.status(503).json(healthStatus);
+  }
+});
+
+// Simple health check without database verification (lighter version)
+router.get('/ping', (req, res) => {
+  console.log('[GET /ping] - Simple ping received');
+  console.log(`[GET /ping] - Timestamp: ${new Date().toISOString()}`);
+  
+  res.status(200).json({
+    message: 'pong',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // GET all categories
 router.get('/', async (req, res) => {
   console.log('[GET /] - Fetching all categories');
