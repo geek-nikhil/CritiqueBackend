@@ -15,20 +15,39 @@ const generateSummary = async (data) => {
   console.log(`Number of reviews: ${reviews.length}`);
 
   try {
-    const prompt = `Analyze these reviews and return JSON only:
+  const prompt = `You are an expert review analyst using the Critique Connect framework.
 
-Task: ${title}
+Analyze the following user reviews for the given product or service, and provide a
+structured response matching the Critique Connect report format.
+
+Title: ${title}
 Description: ${description}
 
 Reviews:
-${reviews.map((r, i) => `${i+1}. ${r}`).join('\n')}
+${reviewsList}
 
-Return EXACTLY this format (no other text):
+Based on the reviews, return the response in the following JSON format:
 {
-    "overall_summary": "2-3 sentence summary",
-    "improvement_points": ["point1", "point2"],
-    "sentiment_analysis": {"positive": "X%", "neutral": "Y%", "negative": "Z%"}
-}`;
+    "id": "${id}",
+    "overall_summary": "<A concise and insightful summary of the overall user feedback>",
+    "improvement_points": [
+        "<List specific points where users suggest or imply improvements are needed>"
+    ],
+    "sentiment_analysis": {
+        "positive": "<% of reviews that are positive>",
+        "neutral": "<% of reviews that are neutral>",
+        "negative": "<% of reviews that are negative>"
+    }
+}
+
+Guidelines:
+- Extract patterns and recurring themes from the reviews.
+- Use a critical but fair tone, like a professional reviewer.
+- Make the summary insightful and actionable.
+- Ensure sentiment percentages reflect the tone and content of the reviews.
+- Balance strengths and weaknesses for a fair assessment.
+
+Output valid JSON only, without any code blocks or other text.`;
 
     const response = await axios.post(
       GROQ_API_URL,
