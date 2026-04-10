@@ -1,21 +1,18 @@
-const axios = require('axios');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Groq Free API (sign up at https://console.groq.com)
-const GROQ_API_KEY = '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';
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+// Initialize Gemini with your free API key
+// Get your key from: https://aistudio.google.com/
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'your-gemini-api-key-here';
+const genAI = new GoogleGenerativeAI('AIzaSyCoBYj3sYVjexnzAEWYPM94jr-Ia0HRE2k');
 
-const generateSummary = async (data) => {
-  const { id, title, description, reviews } = data;
+// Using Gemini 1.5 Flash - free tier with generous limits
+// Free tier: 60 requests per minute, 60,000 tokens per minute [citation:9]
+const MODEL_NAME = "gemini-1.5-flash"; // or "gemini-2.0-flash-exp" for experimental features
 
-  if (!id || !title || !description || !reviews || !Array.isArray(reviews)) {
-    throw new Error("Missing or invalid fields in input data.");
-  }
-
-  console.log("Generating summary for:", id, title);
-  console.log(`Number of reviews: ${reviews.length}`);
-
-  try {
-  const prompt = `You are an expert review analyst using the Critique Connect framework.
+const buildCritiqueConnectPrompt = (id, title, description, reviews) => {
+  const formattedReviews = reviews.map(r => `- ${r}`).join('\n');
+  
+  return `You are an expert review analyst using the Critique Connect framework.
 
 Analyze the following user reviews for the given product or service, and provide a
 structured response matching the Critique Connect report format.
@@ -24,9 +21,10 @@ Title: ${title}
 Description: ${description}
 
 Reviews:
-${reviewsList}
+${formattedReviews}
 
 Based on the reviews, return the response in the following JSON format:
+
 {
     "id": "${id}",
     "overall_summary": "<A concise and insightful summary of the overall user feedback>",
@@ -48,38 +46,125 @@ Guidelines:
 - Balance strengths and weaknesses for a fair assessment.
 
 Output valid JSON only, without any code blocks or other text.`;
+};
 
-    const response = await axios.post(
-      GROQ_API_URL,
-      {
-        model: "llama3-8b-8192", // Free model
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.3,
-        max_tokens: 500
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+const generateSummary = async (data) => {
+  const { id, title, description, reviews } = data;
 
-    let summaryText = response.data.choices[0].message.content;
-    summaryText = summaryText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const summary = JSON.parse(summaryText);
+  if (!id || !title || !description || !reviews || !Array.isArray(reviews)) {
+    throw new Error("Missing or invalid fields in input data.");
+  }
+
+  console.log("Generating summary for:", id, title);
+  console.log(`Number of reviews: ${reviews.length}`);
+
+  try {
+    // Get the generative model
+    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
     
-    return { id, ...summary };
+    // Build the prompt
+    const prompt = buildCritiqueConnectPrompt(id, title, description, reviews);
+    
+    console.log("Sending request to Gemini API...");
+    
+    // Generate content
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    let summaryText = response.text();
+    
+    console.log("Raw response received from Gemini");
+    
+    // Clean up the response (remove markdown code blocks if present)
+    summaryText = summaryText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    
+    // Parse the JSON response
+    let summary;
+    try {
+      summary = JSON.parse(summaryText);
+    } catch (parseError) {
+      // If parsing fails, try to extract JSON from the text
+      const jsonMatch = summaryText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        summary = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('Could not parse JSON response');
+      }
+    }
+    
+    // Ensure the ID matches
+    summary.id = id;
+    
+    // Validate and ensure sentiment percentages exist
+    if (!summary.sentiment_analysis) {
+      summary.sentiment_analysis = { positive: "33%", neutral: "34%", negative: "33%" };
+    }
+    
+    console.log("Summary generated successfully with Gemini");
+    return summary;
     
   } catch (error) {
-    console.error("Error:", error.message);
+    console.error("Error generating summary with Gemini:", error.message);
+    if (error.response) {
+      console.error("Gemini API Error Details:", error.response.data);
+    }
+    
+    // Calculate basic sentiment for fallback
+    const positiveKeywords = ['good', 'great', 'excellent', 'awesome', 'love', 'like', 'amazing', 'perfect', 'fantastic', 'wonderful'];
+    const negativeKeywords = ['bad', 'poor', 'terrible', 'awful', 'hate', 'dislike', 'issue', 'problem', 'bug', 'broken', 'worse'];
+    
+    let positive = 0, negative = 0, neutral = 0;
+    
+    reviews.forEach(review => {
+      const lowerReview = review.toLowerCase();
+      const hasPositive = positiveKeywords.some(keyword => lowerReview.includes(keyword));
+      const hasNegative = negativeKeywords.some(keyword => lowerReview.includes(keyword));
+      
+      if (hasPositive && !hasNegative) positive++;
+      else if (hasNegative && !hasPositive) negative++;
+      else neutral++;
+    });
+    
+    const total = reviews.length;
+    
+    // Return fallback summary
     return {
-      id,
-      overall_summary: `Summary of ${reviews.length} reviews: ${reviews.join('; ')}`,
-      improvement_points: ["Check reviews for improvement points"],
-      sentiment_analysis: { positive: "33%", neutral: "34%", negative: "33%" }
+      id: id,
+      overall_summary: `Based on ${reviews.length} review(s): The main feedback includes ${reviews.slice(0, 2).join(' and ')}. ${reviews.length > 2 ? 'Additional reviews provide more insights.' : ''}`,
+      improvement_points: [
+        "Review data has been collected",
+        "Manual analysis recommended for detailed insights"
+      ],
+      sentiment_analysis: {
+        positive: `${Math.round((positive / total) * 100)}%`,
+        neutral: `${Math.round((neutral / total) * 100)}%`,
+        negative: `${Math.round((negative / total) * 100)}%`
+      }
     };
   }
 };
+
+// Optional: Test function
+const testSummary = async () => {
+  const testData = {
+    id: "test123",
+    title: "Mobile App Development",
+    description: "Create a React Native e-commerce app with payment integration",
+    reviews: [
+      "Great concept but UI needs improvement",
+      "Very useful app, but scalability concerns",
+      "Good idea, needs better performance optimization",
+      "The payment integration works smoothly!"
+    ]
+  };
+  
+  console.log("Running test with Gemini...");
+  const result = await generateSummary(testData);
+  console.log("Generated Summary:", JSON.stringify(result, null, 2));
+};
+
+// Run test if called directly
+if (require.main === module) {
+  testSummary();
+}
 
 module.exports = { generateSummary };
